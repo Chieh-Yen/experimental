@@ -7,6 +7,11 @@ import java.io.ObjectInputStream
 import scala.Predef
 import tw.edu.ntu.csie.liblinear.SolverType._
 import org.jblas.DoubleMatrix
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.linalg.{Vectors,Vector}
+import org.apache.spark.mllib.regression.GeneralizedLinearModel
+import org.apache.spark.mllib.classification.LogisticRegressionModel
+import org.apache.spark.mllib.classification.SVMModel
 
 /** 
  * A linear model stores weights and other information.
@@ -16,11 +21,11 @@ import org.jblas.DoubleMatrix
  *@param nrClass the number of classes
  *@param bias the value of user-specified bias
  */
-class Model(val param : Parameter, labelSet : Array[Double]) extends Serializable
+class LiblinearModel(val param : Parameter, labelSet : Array[Double]) extends Serializable
 {
 	var label : Array[Double] = labelSet.sortWith(_ < _)
 	val nrClass : Int = label.size
-	var w : Array[DoubleMatrix] = new Array(nrClass)
+	var subModels : Array[GeneralizedLinearModel] = null
 	var bias : Double = -1.0
 
 	def setBias(b : Double) : this.type = 
@@ -29,49 +34,14 @@ class Model(val param : Parameter, labelSet : Array[Double]) extends Serializabl
 		this
 	}
 
+	def predictValues(testData : Vector) : Array[Double] = 
+	{
+		subModels.map(model => model.predict(testData))
+	}
+
 	def predictValues(index : Array[Int], value : Array[Double]) : Array[Double] = 
 	{
-		var decValues = Array.fill(nrClass)(0.0)
-		val lastIndex = w(0).length - 1
-		if(nrClass == 2)
-		{
-			var i = 0
-			while(i < index.length)
-			{
-				if(index(i) <= lastIndex)
-				{
-					decValues(0) += value(i) * w(0).get(index(i))
-				}
-				i += 1
-			}
-			if(bias >= 0)
-			{
-				decValues(0) += bias*w(0).get(lastIndex)
-			}
-		}
-		else
-		{
-			var i = 0
-			var j = 0
-			while(i < nrClass)
-			{
-				j = 0
-				while(j < index.length)
-				{
-					if(index(j) <= lastIndex) 
-					{
-						decValues(i) += value(j) * w(i).get(index(j))
-					}
-					j += 1
-				}
-				if(bias >= 0) 
-				{
-					decValues(i) += bias*w(i).get(lastIndex)
-				}
-				i += 1
-			}
-		}
-		decValues
+		subModels.map(model => model.predict(Vectors.sparse(model.weights.size, index,value)))
 	}
 
 	/** 
@@ -105,6 +75,32 @@ class Model(val param : Parameter, labelSet : Array[Double]) extends Serializabl
 		label(labelIndex)
 	}
 
+	def predict(point : Vector) : Double = 
+	{
+		val decValues = predictValues(point)
+		var labelIndex = 0
+		if(nrClass == 2) 
+		{
+			if(decValues(0) < 0) 
+			{
+				labelIndex = 1
+			}
+		}
+		else
+		{
+			var i = 1
+			while(i < nrClass)
+			{
+				if(decValues(i) > decValues(labelIndex))
+				{
+					labelIndex = i
+				}
+				i += 1
+			}
+		}
+		label(labelIndex)
+	}
+
 	/** 
 	 *Predict probabilities given a DataPoint.
 	 *@param point a DataPoint
@@ -114,7 +110,8 @@ class Model(val param : Parameter, labelSet : Array[Double]) extends Serializabl
 	{
 		Predef.require(param.solverType == L2_LR, "predictProbability only supports for logistic regression.")
 		var probEstimates = predictValues(point.index, point.value)
-		probEstimates = probEstimates.map(value => 1.0/(1.0+Math.exp(-value)))
+		// Already prob value in MLlib
+//		probEstimates = probEstimates.map(value => 1.0/(1.0+Math.exp(-value)))
 		if(nrClass == 2)
 		{
 			probEstimates(1) = 1.0 - probEstimates(0)
@@ -141,7 +138,7 @@ class Model(val param : Parameter, labelSet : Array[Double]) extends Serializabl
 	}
 }
 
-object Model
+object LiblinearModel
 {
 
 	/** 
@@ -149,11 +146,11 @@ object Model
 	 *
 	 * @param fileName path to the input file
 	 */
-	def loadModel(fileName : String) : Model =
+	def loadModel(fileName : String) : LiblinearModel =
 	{
 		val fis = new FileInputStream(fileName)
 		val ois = new ObjectInputStream(fis)
-		val model : Model = ois.readObject.asInstanceOf[Model]
+		val model : LiblinearModel = ois.readObject.asInstanceOf[LiblinearModel]
 		ois.close
 		model
 	}

@@ -1,5 +1,9 @@
 package tw.edu.ntu.csie.liblinear
 
+import org.apache.spark.mllib.regression.LabeledPoint
+import org.apache.spark.mllib.linalg.{DenseVector, SparseVector}
+import org.apache.spark.SparkException
+
 /**
  * DataPoint represents a sparse data point with label.
  *
@@ -9,7 +13,7 @@ package tw.edu.ntu.csie.liblinear
 class DataPoint(val index : Array[Int], val value : Array[Double], val y : Double) extends Serializable
 {
 
-	def getMaxIndex() : Int = 
+	def getMaxIndex() : Int =
 	{
 		if(this.index.isEmpty)
 		{
@@ -18,7 +22,7 @@ class DataPoint(val index : Array[Int], val value : Array[Double], val y : Doubl
 		this.index.last
 	}
 
-	def genTrainingPoint(n : Int, b : Double, posLabel : Double) : DataPoint = 
+	def genTrainingPoint(n : Int, b : Double, posLabel : Double) : DataPoint =
 	{
 		var index : Array[Int] = null
 		var value : Array[Double] = null
@@ -39,5 +43,22 @@ class DataPoint(val index : Array[Int], val value : Array[Double], val y : Doubl
 			value(length) = b
 		}
 		new DataPoint(index, value, y)
+	}
+}
+
+object DataPoint
+{
+	def fromMLlib(input : LabeledPoint) : DataPoint =
+	{
+		input.features match {
+			case dx: DenseVector => {
+				val n = dx.size
+				new DataPoint(0 until n toArray, dx.values, input.label)
+			}
+			case sx: SparseVector => {
+				new DataPoint(sx.indices, sx.values, input.label)
+			}
+			case _ => throw new SparkException(s"fromMLlib doesn't support ${input.features.getClass}.")
+		}
 	}
 }
