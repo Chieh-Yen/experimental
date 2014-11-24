@@ -27,6 +27,7 @@ class LiblinearModel(val param : Parameter, labelSet : Array[Double]) extends Se
 	val nrClass : Int = label.size
 	var subModels : Array[GeneralizedLinearModel] = null
 	var bias : Double = -1.0
+	var threshold : Double = 0.0
 
 	def setBias(b : Double) : this.type = 
 	{
@@ -55,7 +56,7 @@ class LiblinearModel(val param : Parameter, labelSet : Array[Double]) extends Se
 		var labelIndex = 0
 		if(nrClass == 2) 
 		{
-			if(decValues(0) < 0) 
+			if(decValues(0) < threshold) 
 			{
 				labelIndex = 1
 			}
@@ -81,7 +82,7 @@ class LiblinearModel(val param : Parameter, labelSet : Array[Double]) extends Se
 		var labelIndex = 0
 		if(nrClass == 2) 
 		{
-			if(decValues(0) < 0) 
+			if(decValues(0) < threshold) 
 			{
 				labelIndex = 1
 			}
@@ -114,7 +115,7 @@ class LiblinearModel(val param : Parameter, labelSet : Array[Double]) extends Se
 //		probEstimates = probEstimates.map(value => 1.0/(1.0+Math.exp(-value)))
 		if(nrClass == 2)
 		{
-			probEstimates(1) = 1.0 - probEstimates(0)
+			probEstimates = probEstimates :+ 1.0 - probEstimates(0)
 		}
 		else
 		{

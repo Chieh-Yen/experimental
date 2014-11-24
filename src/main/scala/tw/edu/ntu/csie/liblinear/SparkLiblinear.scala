@@ -58,7 +58,7 @@ object SparkLiblinear
 			case L2_LR => {
 				var model = new LogisticRegressionModel(Vectors.dense(weights), intercept)
 				model.clearThreshold()
-				
+				model
 			}
 			case L2_L2LOSS_SVC => {
 				var model = new SVMModel(Vectors.dense(weights), intercept)
@@ -77,16 +77,17 @@ object SparkLiblinear
 		val labelSet : Array[Double] = labels.collect()
 		var model : LiblinearModel= new LiblinearModel(param, labelSet).setBias(prob.bias)
 
-		if(labelSet.size == 2)
+		model.subModels = Array(train_one(prob, param, model.label(0)))
+		if(labelSet.size > 2)
 		{
-			model.subModels(0) = train_one(prob, param, model.label(0))
-		}
-		else
-		{
-			for(i <- 0 until labelSet.size)
+			for(i <- 1 until labelSet.size)
 			{
-				model.subModels(i) = train_one(prob, param, model.label(i))
+				model.subModels = model.subModels :+ train_one(prob, param, model.label(i))
 			}
+		}
+		if(param.solverType == L2_LR)
+		{
+			model.threshold = 0.5
 		}
 		model
 	}
